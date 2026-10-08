@@ -884,6 +884,10 @@ function book_err(e: unknown): string {
     return e.errors.map((m) => Bun.inspect(m, { colors: false })).join("\n")
       || String(e);
   }
+  // a hub fetch that could not connect: Bun's TypeError carries a code
+  if (e instanceof TypeError && typeof (e as { code?: unknown }).code === "string") {
+    return "Error: " + Bend.BEND_HUB + " could not be reached";
+  }
   const err = e as Bend.Err;
   if (e instanceof RangeError) {
     return "Error: the machine stack overflowed (a deep recursion, or a"
