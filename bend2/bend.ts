@@ -1467,9 +1467,6 @@ export function expr_show(book: Book, x: Expr, bnd: Name[] = [], file?: File): s
   }
 }
 
-// a do-block bind or let written without its type fails at its bare first
-// name x: x <- m runs m at type x, so x is no defined name or no Type, and
-// x = v reads the block's result as a let's pattern
 export function err_lost_type(err: Err): string | undefined {
   const spn = err.spn!;
   const str = spn.file.str;
