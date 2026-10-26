@@ -1467,6 +1467,27 @@ export function expr_show(book: Book, x: Expr, bnd: Name[] = [], file?: File): s
   }
 }
 
+// a do-block bind or let written without its type fails at its bare first
+// name x: x <- m runs m at type x, so x is no defined name or no Type, and
+// x = v reads the block's result as a let's pattern
+export function err_lost_type(err: Err): string | undefined {
+  const spn = err.spn!;
+  const str = spn.file.str;
+  const k   = str.slice(spn.beg, spn.end);
+  const at  = str.slice(str.lastIndexOf("\n", spn.beg - 1) + 1, spn.beg);
+  const op  = /^[ \t]*(<-|=(?!=))/.exec(str.slice(spn.end))?.[1];
+  if (op === undefined || !/^[ \t]*$/.test(at) || !/^[A-Za-z_][A-Za-z0-9_.]*$/.test(k)) {
+    return undefined;
+  }
+  if (op === "<-" && (err.exp === "a defined name" || typeof err.exp !== "string" && err.exp.$ === "Typ")) {
+    return "Note: in a do-block, " + k + " <- m runs m at type " + k + "; to bind its result, write " + k + " : A <- m.";
+  }
+  if (op === "=" && err.exp === "a pattern (a binder or a constructor)") {
+    return "Note: in a do-block, a let names its type: " + k + " : A = v.";
+  }
+  return undefined;
+}
+
 export function err_show(err: Err): string {
   const file = err.spn?.file;
   const bnd  = ctx_scope(err.ctx);
@@ -1493,7 +1514,7 @@ export function err_show(err: Err): string {
       String(beg + j).padStart(num) + (beg + j === at ? ">| " + l + "\n" + car : " | " + l)).join("\n");
   }
   const loc  = def === "" && spn === "" ? "" : "\nLocation:" + def + spn;
-  const nte = err.nte === undefined ? "" : "\n" + err.nte;
+  const nte = [err.nte, err.spn && err_lost_type(err)].filter((n) => n).map((n) => "\n" + n).join("");
   return "Error:" + msg + (anns.length === 0 ? "" : "\nContext:") + ctx + loc + nte;
 }
 
@@ -2255,14 +2276,6 @@ export function parse_term_do_stmt(p: Parse, m: Name, ts: LTerm[], col: number):
   const t = parse_term(p);
   parse_skip(p);
   const typed = t.$ === "Var" && parse_take(p, ":");
-  // a bare name before `=`, or a lowercase one that names no type before `<-`,
-  // is a bind or a let that lost its type, not the exec form (`_ : a <- m`
-  // runs m at a lowercase type variable a)
-  if (!typed && t.$ === "Var" && (parse_at(p, "=") && !parse_at(p, "==")
-    || parse_at(p, "<-") && /^[a-z]/.test(t.k) && !(parse_reso(p, t.k) in p.book.tlds))) {
-    const eol = p.str.indexOf("\n", p.pos);
-    parse_fail(p, "a typed bind (x : A <- m) or let (x : A = v)", beg, eol === -1 ? p.str.length : eol);
-  }
   const step  = !typed && parse_more(p, col);
   const A     = typed ? parse_term(p, 1) : step ? parse_var(p, "Unit", t.s) : t;
   parse_skip(p);

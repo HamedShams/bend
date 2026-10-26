@@ -1,5 +1,5 @@
-# a do-block bind without its type is a bind, not the exec form with the
-# name as the type: say so, instead of "a defined name" for x (#1787)
+# a do-block bind written without its type reads x as the type of m's
+# result; the error says so in a note, after "a defined name" for x (#1787)
 import Base
 
 def main() -> IO(Unit):
@@ -9,11 +9,12 @@ def main() -> IO(Unit):
 
 #|SOME PROOFS FAIL
 #|Error:
-#|- expected : a typed bind (x : A <- m) or let (x : A = v)
-#|- observed : 'x <- IO.pure(U32, 1)'
-#|Location:
+#|- expected : a defined name
+#|- observed : x
+#|Location: main
 #|6 |   do IO<Unit>:
 #|7>|     x <- IO.pure(U32, 1)
-#|  |     ^^^^^^^^^^^^^^^^^^^^
+#|  |     ^
 #|8 |     IO.print(U32.show(x))
+#|Note: in a do-block, x <- m runs m at type x; to bind its result, write x : A <- m.
 #|exit 1
