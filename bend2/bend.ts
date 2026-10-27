@@ -1704,9 +1704,6 @@ export function parse_reso(p: Parse, k: Name): Name {
   return own || !far ? q : k;
 }
 
-// a name sugar writes: the file's own if it has one, else the bare one.
-// sugar names a def or type (tab is tlds) or a constructor (ctrs), never
-// either, so a file's constructor Empty leaves != on Base's type Empty
 export function parse_own(p: Parse, k: Name, tab: Record<Name, unknown> = p.book.tlds): Name {
   const q = parse_qual(p, k);
   return q in tab || !(k in tab) ? q : k;
