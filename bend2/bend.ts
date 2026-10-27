@@ -1699,14 +1699,17 @@ export function parse_reso(p: Parse, k: Name): Name {
       parse_fail(p, "an unambiguous name (the alias " + k.slice(0, dot) + " shadows " + k + ")");
     }
   }
-  return parse_own(p, k, q);
-}
-
-// a name sugar writes: the file's own if it has one, else the bare one
-export function parse_own(p: Parse, k: Name, q = parse_qual(p, k)): Name {
   const own = q in p.book.tlds || q in p.book.ctrs;
   const far = k in p.book.tlds || k in p.book.ctrs;
   return own || !far ? q : k;
+}
+
+// a name sugar writes: the file's own if it has one, else the bare one.
+// sugar names a def or type (tab is tlds) or a constructor (ctrs), never
+// either, so a file's constructor Empty leaves != on Base's type Empty
+export function parse_own(p: Parse, k: Name, tab: Record<Name, unknown> = p.book.tlds): Name {
+  const q = parse_qual(p, k);
+  return q in tab || !(k in tab) ? q : k;
 }
 
 export function parse_call(p: Parse, k: Name, xs: LTerm[], s?: Span): LTerm {
@@ -1968,7 +1971,9 @@ export function parse_term_base(p: Parse, beg: number): LTerm {
       parse_take(p, ",");
       const ys  = xs.concat(parse_term_args(p, "]"));
       const spn = parse_span(p, beg);
-      return ys.reduceRight<LTerm>((t, x) => Ctr("Con", [x, t], spn), Ctr("Nil", [], spn));
+      const con = parse_own(p, "Con", p.book.ctrs);
+      const nil = Ctr(parse_own(p, "Nil", p.book.ctrs), [], spn);
+      return ys.reduceRight<LTerm>((t, x) => Ctr(con, [x, t], spn), nil);
     }
     case "'": {
       parse_bump(p);
@@ -2142,7 +2147,7 @@ export function parse_term_ops(p: Parse, tm: LTerm, beg: number, lvl: number): L
     } else if (op === "<&>") {
       out = Min(out, b, s);
     } else if (op === "<>") {
-      out = Ctr(parse_own(p, k), [out, b], s);
+      out = Ctr(parse_own(p, k, p.book.ctrs), [out, b], s);
     } else {
       const f = k[0] === "." ? k : parse_own(p, k);
       out = App(App(Ref(f, op === "&" || op === "|" ? s : t), out, s), b, s);
@@ -2212,7 +2217,7 @@ export function parse_term_tup(p: Parse, beg: number): LTerm {
   parse_skip(p);
   if (b.$ !== "Match" && b.$ !== "Local" && parse_take(p, ",")) {
     const rest = parse_term_tup(p, beg);
-    return Ctr("Tuple", [b, rest], parse_span(p, beg));
+    return Ctr(parse_own(p, "Tuple", p.book.ctrs), [b, rest], parse_span(p, beg));
   }
   const out = body_flatten(b, [], () => p.frs++);
   if (parse_take(p, ":")) {
